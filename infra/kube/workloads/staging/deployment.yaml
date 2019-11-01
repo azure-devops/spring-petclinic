@@ -12,7 +12,7 @@ spec:
     metadata:
       labels:
         app: pet-clinic
-        version: pc-e89effd
+        version: pc-4c3cbd6
 
     spec:
       containers:
