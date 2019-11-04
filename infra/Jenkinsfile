@@ -1,0 +1,77 @@
+pipeline {
+    agent {
+        label 'master'
+    }
+
+    environment {
+        ACR_SECRET = credentials('acr-auth')
+    }
+
+    stages {
+        stage('init') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('init_and_plan') {
+            when {
+                changeset "infra/terraform/*"
+            }
+
+            steps {
+                dir('infra/terraform') {
+                    withCredentials([azureServicePrincipal(credentialsId: 'jenkins-sp',
+                                        subscriptionIdVariable: 'ARM_SUBSCRIPTION_ID',
+                                        clientIdVariable: 'ARM_CLIENT_ID',
+                                        clientSecretVariable: 'ARM_CLIENT_SECRET',
+                                        tenantIdVariable: 'ARM_TENANT_ID'),
+                                     azureStorage(credentialsId: 'jenkins-storage',
+                                     storageAccountKeyVariable: 'ARM_ACCESS_KEY')]) {
+                        sh "terraform init"
+                        sh "terraform plan -out=plan -var 'client_id=$ARM_CLIENT_ID' -var 'client_secret=$ARM_CLIENT_SECRET'"
+                    }
+                }
+            }
+        }
+
+        stage('apply_changes') {
+            when {
+                changeset "infra/terraform/*"
+            }
+
+            steps {
+                dir('infra/terraform') {
+                    withCredentials([azureServicePrincipal(credentialsId: 'jenkins-sp',
+                                        subscriptionIdVariable: 'ARM_SUBSCRIPTION_ID',
+                                        clientIdVariable: 'ARM_CLIENT_ID',
+                                        clientSecretVariable: 'ARM_CLIENT_SECRET',
+                                        tenantIdVariable: 'ARM_TENANT_ID'),
+                                     azureStorage(credentialsId: 'jenkins-storage',
+                                     storageAccountKeyVariable: 'ARM_ACCESS_KEY')]) {
+                        sh "terraform apply plan"
+                        sh "terraform output kube_config > ~/.kube/config"
+                    }
+                }
+            }
+        }
+
+        stage('setup_aks') {
+            when {
+                changeset "infra/terraform/*"
+            }
+
+            steps {
+                echo "$ACR_SECRET"
+                withCredentials([azureServicePrincipal(credentialsId: 'jenkins-sp',
+                                                subscriptionIdVariable: 'AZURE_SUBSCRIPTION_ID',
+                                                clientIdVariable: 'AZURE_CLIENT_ID',
+                                                clientSecretVariable: 'AZURE_SECRET',
+                                                tenantIdVariable: 'AZURE_TENANT')]) {
+                  ansiblePlaybook installation: 'ansible',
+                  playbook: 'infra/ansible/setenv.yaml'
+                }
+            }
+        }
+    }
+}

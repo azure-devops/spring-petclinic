@@ -1,0 +1,16 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: pet-clinic
+  namespace: staging
+  labels:
+    version: pc-b388c50 
+spec:
+  type: LoadBalancer
+  selector:
+    app: pet-clinic
+    version: pc-b388c50
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 8080

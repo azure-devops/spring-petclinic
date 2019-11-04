@@ -1,0 +1,38 @@
+- name: manage aks
+  hosts: localhost
+  connection: local
+  vars:
+    resource_group: azure-k8stest
+  tasks:
+    - name: Create staging namespaces
+      k8s:
+        state: present
+        src: ../kube/namespaces/staging.yaml
+    - name: Create production namespaces
+      k8s:
+        state: present
+        src: ../kube/namespaces/production.yaml
+    - name: Create staging ACR secret
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: acr-secret
+            namespace: staging
+          data:
+            .dockerconfigjson: "{{ lookup('env', 'ACR_SECRET') }}"
+          type: kubernetes.io/dockerconfigjson
+    - name: Create production ACR secret
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: acr-secret
+            namespace: production
+          data:
+            .dockerconfigjson: "{{ lookup('env', 'ACR_SECRET') }}"
+          type: kubernetes.io/dockerconfigjson
